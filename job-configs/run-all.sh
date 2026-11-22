@@ -15,8 +15,9 @@
 #
 #   job-configs/run-all.sh [slots]          # runs; writes jobs/all-<stamp>-*/
 #   DRY=1 job-configs/run-all.sh [slots]    # assembles, prints the order and checks each job with --print-config
-#   CODECLIMB_CONTINUE=jobs/all-<stamp> job-configs/run-all.sh [slots]  # continues a stopped run: each job runs only
-#      the attempts its graded trials there lack, and the regrades and the report read those trials too. A trial there
+#   CODECLIMB_CONTINUE="jobs/all-<stamp> [jobs/all-<stamp> ...]" job-configs/run-all.sh [slots]  # continues stopped
+#      runs: each job runs only the attempts its graded trials there lack, step 1 reuses the last one's reference grades
+#      when they hold every grade, and the regrades and the report read those trials too. A trial there
 #      counts as graded by the current task: delete the ones a task change outdated first (#71: the build trials).
 #
 # Expects CLAUDE_CODE_OAUTH_TOKEN and CLAUDE_FORCE_OAUTH=1 exported, as for any trial; the LangSmith key comes from .env
@@ -35,10 +36,14 @@ logs=jobs/all-$stamp-logs
 refs=jobs/all-$stamp-references
 prev=${CODECLIMB_CONTINUE:-}
 ATTEMPTS=3  # n_attempts of every job file
-[ -z "$prev" ] || ls -d "$prev"-*-* > /dev/null 2>&1 || { echo "CODECLIMB_CONTINUE: no job folder $prev-*" >&2; exit 2; }
+prevs=  # the stopped runs' job folders, for the regrades and the report
+for p in $prev; do
+  ls -d "$p"-*-* > /dev/null 2>&1 || { echo "CODECLIMB_CONTINUE: no job folder $p-*" >&2; exit 2; }
+  prevs="$prevs $p-*-*"
+done
 graded() {  # $1 a job's name: how many of its trials in the stopped run have a reward
   [ -n "$prev" ] || { echo 0; return; }
-  python3 -c 'import glob, json, sys; print(sum(((json.load(open(p)).get("verifier_result") or {}).get("rewards") or {}).get("reward") is not None for p in glob.glob(sys.argv[1] + "/*/result.json")))' "$prev-$1"
+  python3 -c 'import glob, json, sys; print(sum(((json.load(open(p)).get("verifier_result") or {}).get("rewards") or {}).get("reward") is not None for d in sys.argv[2:] for p in glob.glob(d + "-" + sys.argv[1] + "/*/result.json")))' "$1" $prev
 }
 
 if [ -z "${DRY:-}" ]; then
@@ -65,6 +70,16 @@ for t in $counted; do for s in inngest langchain; do
 done; done
 export CODECLIMB_ASSEMBLED=1  # reference.sh: tasks assembled above
 
+grades="$(python3 -c 'import assemble; print(" ".join(f"{s}:{c}:" for s, c in assemble.BUILD_PINS.items()))')"
+grades="$grades $(python3 -c 'import maintenance as m; print(" ".join(sorted({f"{s}:{m.MAINTENANCE[k].bases[s]}:'"$mfam"'" for k in m.COUNTED for s in m.MAINTENANCE[k].bases})))')"
+# A continued run reuses the last stopped run's reference grades when they hold every grade: the same pins and bases,
+# graded by the same verifier (a verifier change outdates them: delete that run's references folder first).
+reuse=
+for p in $prev; do
+  python3 -c 'import glob, sys; sys.exit(not all(glob.glob(f"{sys.argv[1]}/reference-{g.split(":")[0]}-{g.split(":")[1]}-*/*/verifier/reward.json") for g in sys.argv[2:]))' "$p-references" $grades && reuse=$p-references
+done
+[ -z "$reuse" ] || refs=$reuse
+
 shuffle() { python3 -c 'import random,sys;l=sys.stdin.read().split();random.shuffle(l);print(" ".join(l))'; }
 queue=$(printf '%s\n' inngest-full-pocock langchain-full-pocock | shuffle)
 for u in $( { printf '%s\n' {inngest,langchain}-{bare,skills,mcp-docs,full}; printf 'm:%s\n' $counted; } | shuffle); do
@@ -74,6 +89,7 @@ for u in $( { printf '%s\n' {inngest,langchain}-{bare,skills,mcp-docs,full}; pri
   esac
 done
 echo "slots: $slots; order: $queue"
+[ -z "$reuse" ] || echo "reference grades: reused $refs"
 
 run() {  # $1 a build job file name, or <stack>-<task id>: that maintenance task on the stack's `bare` job file
   local f=$1 stack=${1%%-*}
@@ -102,10 +118,9 @@ reap() { live=(); for p in "${pids[@]}"; do kill -0 "$p" 2>/dev/null && live+=("
 slot() { while reap; [ "${#pids[@]}" -ge "$slots" ]; do sleep 30; done; }  # wait for a free slot
 
 # 1. Reference grades: each pin with the run's families, each maintenance base with the maintenance families.
-grades="$(python3 -c 'import assemble; print(" ".join(f"{s}:{c}:" for s, c in assemble.BUILD_PINS.items()))')"
-grades="$grades $(python3 -c 'import maintenance as m; print(" ".join(sorted({f"{s}:{m.MAINTENANCE[k].bases[s]}:'"$mfam"'" for k in m.COUNTED for s in m.MAINTENANCE[k].bases})))')"
-echo "$(date +%H:%M) reference grades: $grades"
-for g in $grades; do
+[ -n "$reuse" ] || echo "$(date +%H:%M) reference grades: $grades"
+todo=$grades; [ -z "$reuse" ] || todo=
+for g in $todo; do
   IFS=: read -r stack commit fam <<< "$g"
   slot
   ( [ -z "$fam" ] || export CODECLIMB_VERIFIER_FAMILIES=$fam
@@ -158,7 +173,7 @@ fi
 # 3. The regrade rule: every trial that did not pass is regraded once, on both stacks, and the regrade counts ($0, the
 # recorded artifacts; regrade.py). The reference grades are passed for the maintenance bases. Then the code metrics.
 echo "$(date +%H:%M) regrades"
-python3 regrade.py "jobs/all-$stamp-regrades" --slots "$slots" jobs/all-$stamp-*-* ${prev:+$prev-*-*} "$refs" > "$logs/regrades.log" 2>&1 || echo "regrades: some failed, see $logs/regrades.log" >&2
+python3 regrade.py "jobs/all-$stamp-regrades" --slots "$slots" jobs/all-$stamp-*-* $prevs "$refs" > "$logs/regrades.log" 2>&1 || echo "regrades: some failed, see $logs/regrades.log" >&2
 echo "$(date +%H:%M) code metrics"
 python3 code_metrics.py jobs jobs/all-$stamp-*-* > "$logs/code-metrics.log" 2>&1 || echo "code metrics: some trials failed, see $logs/code-metrics.log" >&2
-echo "$(date +%H:%M) all done; analyze with: uv run python analyze.py jobs/all-$stamp-*-* ${prev:+$prev-*-*} $refs jobs/all-$stamp-regrades"
+echo "$(date +%H:%M) all done; analyze with: uv run python analyze.py jobs/all-$stamp-*-* $prevs $refs jobs/all-$stamp-regrades"
