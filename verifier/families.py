@@ -23,6 +23,11 @@ from nights import RUN_NIGHT, Night, results_name, wait_until
 TIERS = ("hidden-1", "hidden-2", "hidden-3a", "real", "hidden-3b", "hidden-4")
 # The real-model nights: the models they use must be in the Copilot login.
 REAL_MODELS = ("claude-haiku-5.5", "claude-haiku-4.5")
+# The real family on the Claude API instead (decided 2026-11-22, the Copilot quota ran out): with an `anthropic` API key
+# in Pi's auth.json, the real tier runs the same Haiku models through Anthropic. The given configs and the capitals
+# scenario name the Copilot ids: for the real tier only, the clean copy's `configs/` and `scenarios/` name these.
+ANTHROPIC_IDS = {"github-copilot/claude-haiku-5.5": "anthropic/claude-haiku-5-5",
+                 "github-copilot/claude-haiku-4.5": "anthropic/claude-haiku-4-5"}
 # Seconds a mock night of a family may take; a real night's own limit is its test's.
 MOCK_NIGHT_S = 300
 PI_AUTH = Path("/root/.pi/agent/auth.json")
@@ -172,19 +177,41 @@ def set_field(text: str, key: str, value: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def copilot_ready() -> tuple[bool, str]:
-    """The real family runs only with a Copilot login holding its models. Never returns a token."""
+def real_login() -> tuple[str | None, str]:
+    """The provider the real family runs on, "github-copilot" or "anthropic" (None: it is skipped), and why. A Copilot
+    login holding its models, else an Anthropic API key. Never returns a token."""
     if not PI_AUTH.exists():
-        return False, "no Pi auth.json: CODECLIMB_BENCH_PI_AUTH unset"
+        return None, "no Pi auth.json: CODECLIMB_BENCH_PI_AUTH unset"
     try:
-        entry = json.loads(PI_AUTH.read_text()).get("github-copilot") or {}
+        auth = json.loads(PI_AUTH.read_text())
     except ValueError:
-        return False, "Pi auth.json is not JSON"
-    ids = set(entry.get("availableModelIds") or [])
-    missing = [m for m in REAL_MODELS if ids and m not in ids]
-    if not entry.get("refresh"):
-        return False, "no github-copilot login in Pi auth.json"
-    return not missing, f"github-copilot login; models missing: {missing}"
+        return None, "Pi auth.json is not JSON"
+    entry = auth.get("github-copilot") or {}
+    if entry.get("refresh"):
+        ids = set(entry.get("availableModelIds") or [])
+        missing = [m for m in REAL_MODELS if ids and m not in ids]
+        return (None if missing else "github-copilot"), f"github-copilot login; models missing: {missing}"
+    anthropic = auth.get("anthropic") or {}
+    if anthropic.get("type") == "api_key" and anthropic.get("key"):
+        return "anthropic", "anthropic API key"
+    return None, "neither a github-copilot login nor an anthropic API key in Pi auth.json"
+
+
+def to_anthropic(app: Path) -> dict[Path, str]:
+    """Name the Anthropic ids in the app's `configs/` and `scenarios/` files; returns each changed file's old text."""
+    old = {}
+    for f in [*(app / "configs").rglob("*"), *(app / "scenarios").rglob("*")]:
+        try:
+            text = f.read_text() if f.is_file() else ""
+        except (UnicodeDecodeError, OSError):
+            continue
+        new = text
+        for a, b in ANTHROPIC_IDS.items():
+            new = new.replace(a, b)
+        if new != text:
+            old[f] = text
+            f.write_text(new)
+    return old
 
 
 def selected() -> tuple[set[str], set[str] | None]:
@@ -217,31 +244,43 @@ def run_families(ctx: Ctx, record: Callable[[str, bool | None, str, float], None
         mine = [t for t in tests if t.tier == tier]
         if family not in fams or not mine:
             continue
+        provider = None
         if tier == "real":
-            ready, why = copilot_ready()
-            if not ready:
+            provider, why = real_login()
+            if not provider:
                 for t in mine:
                     record(t.key, None, f"skipped: {why}", 0)
                 after_tier()
                 continue
+            print(f"[verifier] real tier on {provider}", flush=True)
         up, detail = ctx.ensure_services()
         if not up:
             for t in mine:
                 record(t.key, False, f"services not up before {tier}: {detail}", 0)
             after_tier()
             continue
-        for t in mine:
-            if time_left() < START_LEFT_S:
-                record(t.key, False, f"{DEADLINE} not started, {time_left():.0f} s left of the verifier's {DEADLINE_S:.0f} s", 0)
-                continue
-            started = time.monotonic()
-            print(f"[verifier] {t.key} ...", flush=True)
-            try:
-                passed, detail = t.fn(ctx)
-            except Skip as e:
-                passed, detail = None, f"skipped: {e}"
-            except Exception:
-                passed, detail = False, traceback.format_exc()[-1500:]
-            record(t.key, passed, detail, time.monotonic() - started)
-            after_tier()  # after every test: a verifier stopped from outside keeps what it graded
+        swapped = to_anthropic(ctx.app) if provider == "anthropic" else {}
+        try:
+            run_tier(ctx, mine, record, after_tier)
+        finally:
+            for f, text in swapped.items():
+                f.write_text(text)
         after_tier()
+
+
+def run_tier(ctx: Ctx, mine: list[Test], record: Callable[[str, bool | None, str, float], None],
+             after_tier: Callable[[], None]) -> None:
+    for t in mine:
+        if time_left() < START_LEFT_S:
+            record(t.key, False, f"{DEADLINE} not started, {time_left():.0f} s left of the verifier's {DEADLINE_S:.0f} s", 0)
+            continue
+        started = time.monotonic()
+        print(f"[verifier] {t.key} ...", flush=True)
+        try:
+            passed, detail = t.fn(ctx)
+        except Skip as e:
+            passed, detail = None, f"skipped: {e}"
+        except Exception:
+            passed, detail = False, traceback.format_exc()[-1500:]
+        record(t.key, passed, detail, time.monotonic() - started)
+        after_tier()  # after every test: a verifier stopped from outside keeps what it graded

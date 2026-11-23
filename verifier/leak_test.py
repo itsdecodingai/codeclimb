@@ -135,6 +135,21 @@ class LeakScan(unittest.TestCase):
         (self.app / "SPEC.md").write_text(SPEC + "A note of my own.\n")
         self.assertEqual(self.leak(), 0)
 
+    # gVLNHRW (2026-11-22): a fresh clone of /app to check the build copies the given corpus, owner names included.
+    def test_a_given_file_copied_to_another_path(self):
+        corpus = "A post from Decoding AI Magazine.\n"
+        (self.app / "scenarios").mkdir()
+        (self.app / "scenarios/post.md").write_text(corpus)
+        self.given = given_record(self.app)
+        (self.app / ".vc/scenarios").mkdir(parents=True)
+        (self.app / ".vc/scenarios/post.md").write_text(corpus)
+        self.assertEqual(self.leak(), 0)
+
+    def test_a_copied_given_file_with_a_new_name_still_counts(self):
+        (self.app / ".vc").mkdir()
+        (self.app / ".vc/SPEC.md").write_text(SPEC + "decodingai-magazine\n")
+        self.assertEqual(self.leak(), 1)
+
     def test_a_web_search_result_that_quotes_one(self):
         self.session([tool_use("1", "WebSearch", {"query": "codeclimb optimization loop"}),
                       tool_result("1", [{"type": "text", "text": "Links: [{\"title\": \"x\", \"url\": \"https://github.com/x/codeclimb\"}]"}])])

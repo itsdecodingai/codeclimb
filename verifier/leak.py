@@ -13,7 +13,8 @@ the harness wrote it.
 - `/app`: in each file the harness wrote or changed, the owner anywhere, and blocked hosts only where the build
   fetches: a Dockerfile's `RUN` and `ADD` instructions, `package.json` dependency specs (`github:`, `git+`, URLs),
   `package-lock.json` `resolved` URLs. A given file counts only for names beyond those it held as given
-  (`given.json`, written by assemble.py: per given file, its sha256 and these names)
+  (`given.json`, written by assemble.py: per given file, its sha256 and these names). A file equal to a given file
+  counts as given at any path: a build checked from a fresh clone (`git clone /app /app/.vc`) copies the given inputs
 
 A hit sets `leak` = 1; the trial keeps its reward and is reported apart.
 """
@@ -150,11 +151,12 @@ def app_files(app: Path) -> list[Path]:
 
 def app_hits(app: Path, given: dict[str, dict[str, object]]) -> list[str]:
     hits = []
+    given_shas = {str(g["sha256"]) for g in given.values()}
     for p in app_files(app):
         rel = p.relative_to(app).as_posix()
         data = p.read_bytes()
         base = given.get(rel)
-        if base is not None and base["sha256"] == hashlib.sha256(data).hexdigest():
+        if hashlib.sha256(data).hexdigest() in given_shas:
             continue
         found = Counter(route_names(rel, data.decode("utf-8", errors="replace")))
         allowed = Counter(base["names"]) if base is not None else Counter()

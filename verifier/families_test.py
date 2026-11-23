@@ -82,5 +82,40 @@ class Deadline(unittest.TestCase):
             self.assertGreaterEqual(limit - F.DEADLINE_S, 1800, toml)
 
 
+class ClaudeApi(unittest.TestCase):
+    """The real family on an Anthropic API key (the Copilot quota ran out, 2026-11-22)."""
+
+    def login(self, auth: dict) -> tuple:
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "auth.json"
+            f.write_text(json.dumps(auth))
+            with mock.patch.object(F, "PI_AUTH", f):
+                return F.real_login()
+
+    def test_the_provider_comes_from_the_login(self):
+        self.assertEqual(self.login({"anthropic": {"type": "api_key", "key": "sk-x"}})[0], "anthropic")
+        self.assertEqual(self.login({"github-copilot": {"refresh": "r", "availableModelIds": list(F.REAL_MODELS)}})[0],
+                         "github-copilot")
+        self.assertIsNone(self.login({"github-copilot": {"refresh": "r", "availableModelIds": ["gpt-5"]}})[0])
+        self.assertIsNone(self.login({"anthropic": {"type": "api_key"}})[0])
+
+    def test_configs_and_scenarios_name_the_anthropic_ids_and_come_back(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            app = Path(d)
+            (app / "configs/e2e").mkdir(parents=True)
+            (app / "scenarios/capitals").mkdir(parents=True)
+            cfg = app / "configs/e2e/budget.yaml"
+            cfg.write_text("model: github-copilot/claude-haiku-5.5\nreviewer_model: github-copilot/claude-haiku-4.5\n")
+            prog = app / "scenarios/capitals/main.py"
+            prog.write_text('MODEL = "github-copilot/claude-haiku-4.5"\n')
+            (app / "scenarios/capitals/data.bin").write_bytes(bytes(range(256)))
+            old = F.to_anthropic(app)
+            self.assertEqual(cfg.read_text(), "model: anthropic/claude-haiku-5-5\nreviewer_model: anthropic/claude-haiku-4-5\n")
+            self.assertIn("anthropic/claude-haiku-4-5", prog.read_text())
+            self.assertEqual(set(old), {cfg, prog})
+
+
 if __name__ == "__main__":
     unittest.main()

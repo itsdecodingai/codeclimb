@@ -46,6 +46,10 @@ DOCS_TOOLS: dict[str, frozenset[str] | None] = {
 WORKFLOW_SKILLS = frozenset(
     {"implement", "tdd", "code-review", "diagnosing-bugs", "research", "domain-modeling", "codebase-design", "prototype"}
 )
+# Trials the leak scan flagged whose hits a hand read cleared (spec, Leaks: cleared by hand; the operator decides each).
+LEAK_CLEARED = {
+    "codeclimb-langchain__gVLNHRW": "a node -e call of the build's own blockedUrl (no request); the .vc clone's given files",
+}
 STATUS = re.compile(r"^\*\*Status:\*\*\s*(\S+)", re.MULTILINE)
 # A web URL: a dotted host name that is not this machine or the Docker host (a daemon probe such as http://h:2375 or
 # http://$(ip route ...):2375 is not a web call).
@@ -476,14 +480,20 @@ def classify(row: dict) -> str:
     """counted | infra | leak | no-reward. Infra: a usage-limit stop in the stream whatever Harbor's type, an infra
     exception type, or an artifact that failed to collect (the verifier graded a partial copy; Harbor calls that
     best-effort and records no exception). A leak counts only for a harness: a reference build's own files quote
-    the owner."""
+    the owner; a leak cleared by hand (LEAK_CLEARED) counts."""
     if row["usage_limit"] or row["exception_type"] in INFRA_TYPES or row["artifacts_failed"]:
         return "infra"
     if row["reward"] is None:
         return "no-reward"
-    if row["leak"] and row["harness"] != "nop":
+    if row["leak"] and row["harness"] != "nop" and leak_cleared(row) is None:
         return "leak"
     return "counted"
+
+
+def leak_cleared(row: dict) -> str | None:
+    """The hand read's reason, for a trial or a regrade of one in LEAK_CLEARED."""
+    names = [row["trial"], *(row.get("regrade_of") or "").split("/")[-1:]]
+    return next((LEAK_CLEARED[n] for n in names if n in LEAK_CLEARED), None)
 
 
 def trial_row(trial: Path) -> dict | None:
@@ -1074,6 +1084,9 @@ def report(rows: list[dict]) -> str:
         kept = [r for r in rows if r["status"] == status]
         lines.append(f"{status}: {len(kept)}" + (f", ${sum(r['cost_usd'] or 0 for r in kept):.2f}" if kept else ""))
         lines += [f"    {r['job']}/{r['trial']} {r['stack']} {r['arm']} {r['exception_type'] or ''}{' usage limit' if r['usage_limit'] else ''} ${_fmt(r['cost_usd'], 2)}" for r in kept]
+    cleared = [r for r in rows if r["leak"] and r["status"] != "regraded" and leak_cleared(r) is not None]
+    lines.append(f"leak cleared by hand, counted: {len(cleared)}")
+    lines += [f"    {r['job']}/{r['trial']} {r['stack']} {r['arm']}: {leak_cleared(r)}" for r in cleared]
     lines.append(f"no reward (verifier off or failed): {sum(r['status'] == 'no-reward' for r in rows)}")
     lines.append(f"replaced by a later regrade: {sum(r['status'] == 'regraded' for r in rows)}")
     retries = {r["job"]: r.get("job_retries") or 0 for r in rows}

@@ -24,7 +24,7 @@
 # (job-configs/bench-env.sh) unless CODECLIMB_BENCH_LANGSMITH_API_KEY is exported.
 # The verifier's real.* family (build trials and the pins' grades) also needs the operator's Pi Copilot login, or it is
 # skipped and reports no keys:
-#   export CODECLIMB_BENCH_PI_AUTH="$(python3 job-configs/pi-auth.py)"
+#   export CODECLIMB_BENCH_PI_AUTH="$(python3 job-configs/pi-auth.py)"   # or `pi-auth.py anthropic`: the Claude API
 # CODECLIMB_VERIFIER_FAMILIES without `real` (e.g. basic,hidden) runs without it. Maintenance trials, their regrades and
 # their bases' grades always run maintenance.FAMILIES.
 set -uo pipefail
@@ -41,9 +41,10 @@ for p in $prev; do
   ls -d "$p"-*-* > /dev/null 2>&1 || { echo "CODECLIMB_CONTINUE: no job folder $p-*" >&2; exit 2; }
   prevs="$prevs $p-*-*"
 done
-graded() {  # $1 a job's name: how many of its trials in the stopped run have a reward
+graded() {  # $1 a job's name: how many of its trials in the stopped runs have a reward or are still running (no
+  # result.json yet: a trial of a job left running when its run-all stopped). Delete a killed trial's folder first.
   [ -n "$prev" ] || { echo 0; return; }
-  python3 -c 'import glob, json, sys; print(sum(((json.load(open(p)).get("verifier_result") or {}).get("rewards") or {}).get("reward") is not None for d in sys.argv[2:] for p in glob.glob(d + "-" + sys.argv[1] + "/*/result.json")))' "$1" $prev
+  python3 -c 'import glob, json, sys; import os; print(sum(not os.path.exists(t + "result.json") or ((json.load(open(t + "result.json")).get("verifier_result") or {}).get("rewards") or {}).get("reward") is not None for d in sys.argv[2:] for t in glob.glob(d + "-" + sys.argv[1] + "/*/")))' "$1" $prev
 }
 
 if [ -z "${DRY:-}" ]; then
@@ -53,6 +54,7 @@ if [ -z "${DRY:-}" ]; then
   case ",${CODECLIMB_VERIFIER_FAMILIES:-basic,hidden,real}," in
     *,real,*) case "${CODECLIMB_BENCH_PI_AUTH:-}" in
         *'"github-copilot"'*'"refresh"'*) ;;
+        *'"anthropic"'*'"api_key"'*) ;;
         *) echo 'export CODECLIMB_BENCH_PI_AUTH="$(python3 job-configs/pi-auth.py)" first, or set CODECLIMB_VERIFIER_FAMILIES without real' >&2; exit 2 ;;
       esac ;;
   esac
@@ -176,4 +178,5 @@ echo "$(date +%H:%M) regrades"
 python3 regrade.py "jobs/all-$stamp-regrades" --slots "$slots" jobs/all-$stamp-*-* $prevs "$refs" > "$logs/regrades.log" 2>&1 || echo "regrades: some failed, see $logs/regrades.log" >&2
 echo "$(date +%H:%M) code metrics"
 python3 code_metrics.py jobs jobs/all-$stamp-*-* > "$logs/code-metrics.log" 2>&1 || echo "code metrics: some trials failed, see $logs/code-metrics.log" >&2
-echo "$(date +%H:%M) all done; analyze with: uv run python analyze.py jobs/all-$stamp-*-* $prevs $refs jobs/all-$stamp-regrades"
+# Regrades made by hand beside the run (jobs/regrades-*, e.g. the real tier on the Claude API, 2026-11-22) count too.
+echo "$(date +%H:%M) all done; analyze with: uv run python analyze.py jobs/all-$stamp-*-* $prevs $refs jobs/all-$stamp-regrades $(ls -d jobs/regrades-* 2>/dev/null | tr '\n' ' ')"

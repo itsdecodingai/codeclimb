@@ -7,11 +7,25 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from analyze import collect, effects, family_table, full_vs_bare, interaction, interaction_p, lever_counts, permutation_p, pile_progress, process_table, real_night_table, report, runtime_table, stream_facts, web_table
+from analyze import LEAK_CLEARED, classify, collect, effects, family_table, full_vs_bare, interaction, interaction_p, lever_counts, permutation_p, pile_progress, process_table, real_night_table, report, runtime_table, stream_facts, web_table
 
 
 def trajectory(*calls):
     return {"steps": [{"tool_calls": [{"function_name": n, "arguments": a} for n, a in calls]}]}
+
+
+class LeakCleared(unittest.TestCase):
+    """A leak a hand read cleared counts (spec, Leaks: cleared by hand), its regrade too; any other stays a leak."""
+
+    def row(self, trial: str, regrade_of: str | None = None) -> dict:
+        return {"usage_limit": False, "exception_type": None, "artifacts_failed": [], "reward": 1.0, "leak": 1,
+                "harness": "claude-code", "trial": trial, "regrade_of": regrade_of}
+
+    def test_cleared_and_not(self):
+        cleared = next(iter(LEAK_CLEARED))
+        self.assertEqual(classify(self.row(cleared)), "counted")
+        self.assertEqual(classify(self.row("r1", regrade_of=f"job/{cleared}")), "counted")
+        self.assertEqual(classify(self.row("codeclimb-langchain__U3NPDfX")), "leak")
 
 
 class LeverCounts(unittest.TestCase):
