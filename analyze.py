@@ -49,6 +49,7 @@ WORKFLOW_SKILLS = frozenset(
 # Trials the leak scan flagged whose hits a hand read cleared (spec, Leaks: cleared by hand; the operator decides each).
 LEAK_CLEARED = {
     "codeclimb-langchain__gVLNHRW": "a node -e call of the build's own blockedUrl (no request); the .vc clone's given files",
+    "codeclimb-langchain__o8xG5nj": "a curl -sI of astral-sh's python-build-standalone releases on github.com (a third party)",
 }
 STATUS = re.compile(r"^\*\*Status:\*\*\s*(\S+)", re.MULTILINE)
 # A web URL: a dotted host name that is not this machine or the Docker host (a daemon probe such as http://h:2375 or

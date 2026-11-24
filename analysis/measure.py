@@ -4,7 +4,7 @@
 
 The context (from code_metrics.py) names the given inputs, the build spec's dependency table and the stack SDK.
 Every tool is filtered through one scope, `scope()`: the build's TypeScript and JavaScript without the given inputs,
-the Next.js app and generated files. A tool that fails gives null and its error, never a zero.
+the Next.js app, generated files and, in a build with its own git, the files it ignores. A tool that fails gives null and its error, never a zero.
 """
 
 import hashlib
@@ -55,6 +55,9 @@ def next_app(files: list[str], deps: dict[str, str]) -> set[str]:
 def scope(ctx: dict, deps: dict[str, str]) -> tuple[list[str], dict[str, list[str]]]:
     """(the measured files, the excluded ones by reason)."""
     files = files_of(APP)
+    if ctx.get("kept_files") is not None:
+        kept = set(ctx["kept_files"])
+        files = [f for f in files if f in kept]
     given = {f for f in files if f.split("/", 1)[0] in ctx["given_dirs"] or f in ctx["given_files"]}
     nxt = next_app(files, deps) - given
     measured = [f for f in files if f.endswith(CODE) and f not in given and f not in nxt]
@@ -448,7 +451,7 @@ def main(ctx_path: str, out_path: str) -> None:
     metrics = {
         "stack": ctx["stack"],
         "definitions": {
-            "measured": "TypeScript and JavaScript files without the given inputs, the Next.js app and generated files",
+            "measured": "TypeScript and JavaScript files without the given inputs, the Next.js app, generated files and the files the build's git ignores",
             "modules": "folders holding measured non-test files",
             "test_files": "files under test/, tests/ or __tests__/, or named *.test.* or *.spec.*",
         },

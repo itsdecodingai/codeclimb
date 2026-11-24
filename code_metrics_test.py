@@ -9,9 +9,31 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from code_metrics import build_trials, measure
+from code_metrics import build_trials, kept_files, measure
 
 FIXTURE = Path(__file__).resolve().parent / "analysis" / "fixture"
+
+
+class KeptFiles(unittest.TestCase):
+    """No Docker: the files a build's git does not ignore, which measure.py's scope keeps."""
+
+    def test_ignored_files_are_left_out(self):  # gVLNHRW: an ignored clone of the build, /app/.vc
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            app = Path(d)
+            subprocess.run(["git", "init", "-q", str(app)], check=True)
+            (app / "src").mkdir()
+            (app / "src/a.ts").write_text("export const a = 1;\n")
+            (app / "src/new.ts").write_text("export const b = 2;\n")  # untracked, not ignored: kept
+            (app / ".vc/src").mkdir(parents=True)
+            (app / ".vc/src/a.ts").write_text("export const a = 1;\n")
+            (app / ".git/info/exclude").write_text(".vc/\n")
+            subprocess.run(["git", "-C", str(app), "add", "src/a.ts"], check=True)
+            self.assertEqual(kept_files(app), ["src/a.ts", "src/new.ts"])
+
+    def test_a_build_without_git_keeps_everything(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(kept_files(Path(d)))
 
 
 class FixtureBuild(unittest.TestCase):

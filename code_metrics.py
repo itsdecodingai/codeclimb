@@ -82,6 +82,16 @@ def context(stack: str) -> dict:
     }
 
 
+def kept_files(app: Path) -> list[str] | None:
+    """The files the build's git does not ignore (tracked, or untracked and not ignored), or None for a build without
+    its own git (a `git archive`). A build may ignore a local copy of itself: gVLNHRW cloned /app into an ignored /app/.vc."""
+    if not (app / ".git").exists():
+        return None
+    out = subprocess.run(["git", "-C", str(app), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                         capture_output=True, check=True).stdout.decode()
+    return sorted(f for f in out.split("\0") if f)
+
+
 def image() -> str:
     """The analysis image, tagged by the digest of its inputs, built when missing."""
     digest = hashlib.sha256()
@@ -106,7 +116,7 @@ def measure(app: Path, stack: str, out: Path, reference: Path | None = None) -> 
         raise SystemExit(f"unknown stack {stack!r}: one of {', '.join(STACKS)}")
     app = app.resolve()
     with tempfile.TemporaryDirectory() as tmp:
-        (Path(tmp) / "context.json").write_text(json.dumps(context(stack)))
+        (Path(tmp) / "context.json").write_text(json.dumps({**context(stack), "kept_files": kept_files(app)}))
         subprocess.run(
             ["docker", "run", "--rm", "-v", f"{app}:/app:ro", "-v", f"{tmp}:/io", image(),
              "python3", "/tools/measure.py", "/io/context.json", "/io/metrics.json"],
