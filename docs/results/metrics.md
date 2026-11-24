@@ -14,7 +14,8 @@ The source is `jobs/report-final-20261124.txt` (`analyze.py` over every job fold
 - **Maintenance:** Inngest resolves 27/30, LangChain 30/30.
 - **Code quality:**
   - One-shot builds are about 0.6x the reference's size, with 2–20x its type escapes and lint findings, and about half its test coverage.
-  - Pocock builds have about 5x the tests and reach the reference's coverage, but their own test suites fail more often when rerun in the analysis container.
+  - Pocock builds have about 5x the tests and reach the reference's coverage.
+  - Every build's own tests pass in all 3 reruns.
 - **Cost** (Claude Code's reported cost on the operator's subscription):
   - $511 for 31 build trials (including the leak trial) and $51 for 60 maintenance trials.
   - About $12–15 per one-shot build and $29–31 per pocock build.
@@ -115,24 +116,24 @@ Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of 
 - **What is measured:** TypeScript and JavaScript files, leaving out the given inputs, the Next.js app, generated files and anything the build's own git ignores.
 - **lint/kloc:** findings of a fixed typescript-eslint ruleset per 1000 code lines.
 - **type escapes:** `any`, non-null `!`, `as unknown as` and `@ts-` directives.
-- **own tests green:** how many of 3 runs of the build's own `npm test` exit 0 in the analysis container, with no services up.
+- **own tests green:** how many of 3 runs of the build's own `npm test` exit 0 in the analysis container. The tests get a Docker daemon of their own and the build's sandbox image, as in the trial, and no CodeClimb service. Line coverage comes from the same setup.
 
 ### Per cell (mean of 3)
 
 | stack | workflow | arm | code lines | test lines | files | type escapes/kloc | lint/kloc | dup % | max complexity | line coverage % | own tests green /3 | unused files |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| inngest | one-shot | bare | 4822 | 235 | 31 | 30.9 | 172 | 0.3 | 82 | 28.8 | 3.0 | 0.0 |
+| inngest | one-shot | bare | 4822 | 235 | 31 | 30.9 | 172 | 0.3 | 82 | 30.4 | 3.0 | 0.0 |
 | inngest | one-shot | skills | 4518 | 168 | 34 | 30.5 | 194 | 0.2 | 62 | 23.7 | 3.0 | 0.0 |
 | inngest | one-shot | mcp-docs | 4695 | 164 | 34 | 27.0 | 161 | 0.3 | 76 | 24.6 | 3.0 | 0.3 |
-| inngest | one-shot | full | 4466 | 195 | 33 | 33.3 | 172 | 0.2 | 82 | 26.6 | 3.0 | 0.0 |
-| inngest | pocock | full | 6016 | 1468 | 67 | 20.2 | 73 | 0.3 | 54 | 66.0 | 1.0 | 3.0 |
+| inngest | one-shot | full | 4466 | 195 | 33 | 33.3 | 172 | 0.2 | 82 | 27.1 | 3.0 | 0.0 |
+| inngest | pocock | full | 6016 | 1468 | 67 | 20.2 | 73 | 0.3 | 54 | 71.7 | 3.0 | 3.0 |
 | inngest | reference `5a81c07` | | 7947 | 1857 | 57 | 8.2 | 9.9 | 0.6 | 72 | 66.9 | 3 | 3 |
-| langchain | one-shot | bare | 4808 | 157 | 31 | 33.5 | 194 | 0.2 | 75 | 27.7 | 2.0 | 6.3 |
-| langchain | one-shot | skills | 4678 | 172 | 35 | 34.1 | 182 | 0.3 | 77 | 26.7 | 1.0 | 6.0 |
-| langchain | one-shot | mcp-docs | 4514 | 203 | 31 | 42.2 | 207 | 0.5 | 89 | 33.0 | 1.0 | 3.3 |
-| langchain | one-shot | full | 4886 | 315 | 31 | 36.8 | 185 | 0.4 | 69 | 27.0 | 3.0 | 0.7 |
-| langchain | pocock | full | 5022 | 933 | 62 | 20.0 | 67 | 0.1 | 53 | 61.5 | 0.0 | 2.0 |
-| langchain | reference `3612892` | | 8546 | 2012 | 85 | 0.9 | 13.0 | 0.35 | 67 | 60.0 | 3 | 7 |
+| langchain | one-shot | bare | 4808 | 157 | 31 | 33.5 | 194 | 0.2 | 75 | 30.3 | 3.0 | 6.3 |
+| langchain | one-shot | skills | 4678 | 172 | 35 | 34.1 | 182 | 0.3 | 77 | 28.3 | 3.0 | 6.0 |
+| langchain | one-shot | mcp-docs | 4514 | 203 | 31 | 42.2 | 207 | 0.5 | 89 | 37.1 | 3.0 | 3.3 |
+| langchain | one-shot | full | 4886 | 315 | 31 | 36.8 | 185 | 0.4 | 69 | 32.9 | 3.0 | 0.7 |
+| langchain | pocock | full | 5022 | 933 | 62 | 20.0 | 67 | 0.1 | 53 | 66.9 | 3.0 | 2.0 |
+| langchain | reference `3612892` | | 8546 | 2012 | 85 | 0.9 | 13.0 | 0.35 | 67 | 67.0 | 3 | 7 |
 
 ### Per stack (all 15 builds)
 
@@ -145,10 +146,10 @@ Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of 
 | lint findings per kloc (vs reference) | 154 (15.6x) | 167 (12.8x) |
 | duplicated % | 0.3 | 0.3 |
 | complexity mean / max | 3.63 / 71 | 3.63 / 72 |
-| line coverage %: all / glue / domain | 34.0 / 0.8 / 37.6 | 35.2 / 3.2 / 39.9 |
+| line coverage %: all / glue / domain | 35.5 / 0.8 / 39.3 | 39.1 / 3.2 / 44.3 |
 | unused files / unused exports | 0.7 / 55.9 | 3.7 / 52.9 |
 | dependencies beyond the spec's table | 2.5 | 0.0 |
-| own tests green, of 3 runs | 2.6 | 1.4 |
+| own tests green, of 3 runs | 3.0 | 3.0 |
 | hardcoded thresholds (builds with any) | 1/15 | 3/15 |
 
 **Practices:**

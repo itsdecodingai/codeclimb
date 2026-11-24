@@ -1,0 +1,9 @@
+{
+  "name": "fixture-docker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:image": "docker build -q -t codeclimb-python -f sandbox.Dockerfile .",
+    "test": "docker run --rm -v \"$PWD\":/w codeclimb-python cat /w/marker.txt"
+  }
+}

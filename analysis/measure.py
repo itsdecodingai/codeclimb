@@ -383,6 +383,17 @@ def dead_code(work: Path, files: list[str]) -> dict:
 
 
 TEST_S = 300
+IMAGE_S = 900
+
+
+def sandbox_image(work: Path, pkg: dict) -> dict:
+    """The build's own `npm run build:image` on the measurement's Docker daemon, before its tests run, as the verifier
+    does: the build specs promise `codeclimb-python` exists, so a test may start a sandbox."""
+    if "build:image" not in (pkg.get("scripts") or {}):
+        return {"ok": False, "error": "no build:image script"}
+    code, out = run(["npm", "run", "build:image"], work, timeout=IMAGE_S)
+    return {"ok": code == 0, "error": None if code == 0 else out[-1500:]}
+
 
 
 def test_counts(out: str) -> tuple[int | None, int | None]:
@@ -392,7 +403,7 @@ def test_counts(out: str) -> tuple[int | None, int | None]:
 
 
 def flakiness(work: Path, pkg: dict) -> dict:
-    """`npm test` 3 times, no service up, each under a hard timeout."""
+    """`npm test` 3 times with the measurement's Docker daemon and no CodeClimb service up, each under a hard timeout."""
     if "test" not in (pkg.get("scripts") or {}):
         return {"runs": [], "passed_runs": None, "error": "no test script"}
     runs = []
@@ -470,6 +481,8 @@ def main(ctx_path: str, out_path: str) -> None:
         # Code checks: deterministic, read from the code.
         "code_checks": {"hardcoded_thresholds": hardcoded_thresholds(ctx, work, measured)},
         "practices": practices(ctx, pkg, work),
+        # Before the tests: they run with a Docker daemon (code_metrics.start_daemon) and the build's sandbox image.
+        "sandbox_image": sandbox_image(work, pkg),
         "coverage": coverage(work, pkg, measured, glued["glue_files"]),
         "flakiness": flakiness(work, pkg),
     }

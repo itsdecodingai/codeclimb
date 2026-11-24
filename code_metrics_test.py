@@ -36,6 +36,19 @@ class KeptFiles(unittest.TestCase):
             self.assertIsNone(kept_files(Path(d)))
 
 
+class DockerBuild(unittest.TestCase):
+    """A build's tests get a Docker daemon of their own: its `build:image` builds `codeclimb-python`, and its test
+    starts a sandbox that bind-mounts the build's own folder. Without Docker, 10 of 31 build trials failed only on
+    `spawn docker ENOENT` (spec, Metrics, decided 2026-11-24)."""
+
+    def test_tests_start_sandboxes_on_their_own_daemon(self):
+        with tempfile.TemporaryDirectory() as d:
+            m = measure(FIXTURE.parent / "fixture-docker", "inngest", Path(d) / "code-metrics.json")
+        self.assertEqual(m["sandbox_image"], {"ok": True, "error": None})
+        self.assertEqual(m["flakiness"]["passed_runs"], 3, m["flakiness"])
+        self.assertEqual(m["coverage"]["tests_exit"], 0)
+
+
 class FixtureBuild(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

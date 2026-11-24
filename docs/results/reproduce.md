@@ -101,6 +101,7 @@ Each step below is in the job folders and in the git history.
 - **2026-11-23:** the leak scan counts a file byte-identical to a given file as given at any path. The hand-cleared list was added; `gVLNHRW` was cleared and `U3NPDfX` kept as a leak.
 - **2026-11-23:** code metrics leave out files the build's own git ignores. All 30 earlier build trials were re-measured on 2026-11-24, with the old files kept as `code-metrics.old.json`.
 - **2026-11-24:** the hand-cleared rule allows a request to a third party's page on a blocked host; `o8xG5nj` was cleared under it.
+- **2026-11-24:** a build's own tests run in code metrics with a Docker daemon of their own and after its `npm run build:image`, as in the trial. Without one, 10 builds failed only on Docker missing. Every build trial and both pins were re-measured, with the earlier files kept as `code-metrics.nodocker.json`.
 
 The extra trial ran this way (from the repo root, the same environment as `start-full-run.sh`):
 
@@ -116,10 +117,16 @@ python3 regrade.py jobs/all-<stamp>-regrades --slots 1 jobs/all-<stamp>-langchai
 python3 code_metrics.py jobs jobs/all-<stamp>-langchain-full
 ```
 
+The Docker re-measure moved each `code-metrics.json` (and `jobs/reference-metrics/*.json`) to `code-metrics.nodocker.json`, then measured every build trial again:
+
+```bash
+python3 code_metrics.py jobs jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*-* jobs/all-20261122-1002-*-* jobs/all-20261122-1520-*-* jobs/all-20261123-*-langchain-full
+```
+
 The final report was produced by:
 
 ```bash
-uv run python analyze.py jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*-* jobs/all-20261122-1002-*-* jobs/all-20261122-1520-*-* jobs/all-20261123-*-langchain-full jobs/all-20261121-1146-references jobs/all-20261122-1520-regrades jobs/regrades-anthropic-20261122 jobs/all-20261123-2114-regrades > jobs/report-final-20261124.txt
+uv run python analyze.py jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*-* jobs/all-20261122-1002-*-* jobs/all-20261122-1520-*-* jobs/all-20261123-*-langchain-full jobs/all-20261121-1146-references jobs/all-20261122-1520-regrades jobs/regrades-anthropic-20261122 jobs/all-20261123-2114-regrades > jobs/report-final-docker-20261124.txt
 ```
 
 

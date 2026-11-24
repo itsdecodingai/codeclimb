@@ -17,11 +17,14 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
+import uuid
 from pathlib import Path
 
 from assemble import AGENTS_STUB, ROOT, SHARED, STACKS, STUBS
 
 ANALYSIS = ROOT / "analysis"
+DIND = "docker:27-dind"  # the trial's sidecar (tasks/shared/dind.compose.yaml)
 # The stack SDK: a file importing one of these modules is glue. Tracing packages count on both stacks alike.
 SDK = {"inngest": r"^(inngest|@inngest/[^/]+)(/.*)?$", "langchain": r"^(@langchain/[^/]+|langsmith)(/.*)?$"}
 # Measured as a ratio to the same stack's reference build (spec, Metrics: "(ratio)").
@@ -111,17 +114,38 @@ def ratios(metrics: dict, reference: dict) -> dict:
     return out
 
 
+def start_daemon(name: str) -> None:
+    """A fresh Docker daemon for one measurement, the trial's topology (docs/adr/0001): the analysis container shares
+    its network (DOCKER_HOST at 127.0.0.1) and the `<name>` volume at /work, so the build's tests start sandboxes as
+    they did in the trial and a bind mount of a path under /work resolves on the daemon's side."""
+    subprocess.run(["docker", "run", "-d", "--privileged", "--name", name, "-e", "DOCKER_TLS_CERTDIR=",
+                    "-v", f"{name}:/work", DIND], check=True, stdout=subprocess.DEVNULL)
+    for _ in range(60):
+        if subprocess.run(["docker", "exec", name, "docker", "info"], capture_output=True).returncode == 0:
+            return
+        time.sleep(2)
+    raise OSError(f"the Docker sidecar {name} did not come up in 120 s")
+
+
 def measure(app: Path, stack: str, out: Path, reference: Path | None = None) -> dict:
     if stack not in STACKS:
         raise SystemExit(f"unknown stack {stack!r}: one of {', '.join(STACKS)}")
     app = app.resolve()
+    daemon = f"codeclimb-analysis-dind-{uuid.uuid4().hex[:8]}"
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "context.json").write_text(json.dumps({**context(stack), "kept_files": kept_files(app)}))
-        subprocess.run(
-            ["docker", "run", "--rm", "-v", f"{app}:/app:ro", "-v", f"{tmp}:/io", image(),
-             "python3", "/tools/measure.py", "/io/context.json", "/io/metrics.json"],
-            check=True,
-        )
+        tag = image()
+        try:
+            start_daemon(daemon)
+            subprocess.run(
+                ["docker", "run", "--rm", "--network", f"container:{daemon}", "-e", "DOCKER_HOST=tcp://127.0.0.1:2375",
+                 "-v", f"{app}:/app:ro", "-v", f"{tmp}:/io", "-v", f"{daemon}:/work", tag,
+                 "python3", "/tools/measure.py", "/io/context.json", "/io/metrics.json"],
+                check=True,
+            )
+        finally:
+            subprocess.run(["docker", "rm", "-f", "-v", daemon], capture_output=True)
+            subprocess.run(["docker", "volume", "rm", "-f", daemon], capture_output=True)
         metrics = json.loads((Path(tmp) / "metrics.json").read_text())
     if reference is not None:
         metrics["reference"] = str(reference)
