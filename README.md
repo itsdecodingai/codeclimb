@@ -32,13 +32,9 @@ Guardrails live in code, not in the prompt. A TypeScript orchestrator enforces t
 - **Metering proxy** — holds the real credentials, allows only the config's models, and gives each session a one-off token with a dollar cap, revoked when the run ends.
 - **Durability and a human in the loop** — every step is a LangGraph `task()` saved to Postgres, so a killed server replays from the last one; an out-of-credits night pauses on `interrupt()` for up to 3 days until you resume it, and LangSmith traces every experiment.
 
-This is how CodeClimb looks implemented in the LangChain ecosystem while running locally:
+This is how CodeClimb looks implemented in the LangChain ecosystem:
 
-![CodeClimb in the LangChain ecosystem, running locally](assets/architecture-langchain-local.png)
-
-And this is how it looks when deployed:
-
-![CodeClimb in the LangChain ecosystem, deployed](assets/architecture-langchain-deployed.png)
+![CodeClimb in the LangChain ecosystem](assets/architecture-langchain-local.png)
 
 ## 📬 Learn to Build Long-Running Agents
 
