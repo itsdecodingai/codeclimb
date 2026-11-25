@@ -1,8 +1,8 @@
 # CodeClimb benchmark: final results
 
-The full run of 2026-11-20 to 2026-11-24. It covers 2 stacks (Inngest, LangChain), 5 build arms each and 10 maintenance tasks per stack. The harness is Claude Code 2.1.322 on Opus 5.5 (`claude-opus-5-5`) at medium effort, run by Harbor 0.25.0. Every cell has 3 trials.
+The full run of 2026-11-20 to 2026-11-24, with regrades on 2026-11-25. It covers 2 stacks (Inngest, LangChain), 5 build arms each and 10 maintenance tasks per stack. The harness is Claude Code 2.1.322 on Opus 5.5 (`claude-opus-5-5`) at medium effort, run by Harbor 0.25.0. Every cell has 3 trials.
 
-The source is `jobs/report-final-20261124.txt` (`analyze.py` over every job folder of the run) and its `trials.jsonl`. [reproduce.md](reproduce.md) says how to rerun it. `docs/codeclimb-eval-spec.md` defines every term used here.
+The source is `jobs/report-final-20261125.txt` (`analyze.py` over every job folder of the run) and its `trials.jsonl`. [reproduce.md](reproduce.md) says how to rerun it. `docs/codeclimb-eval-spec.md` defines every term used here.
 
 ## Headline
 
@@ -10,7 +10,8 @@ The source is `jobs/report-final-20261124.txt` (`analyze.py` over every job fold
 - **No arm effect is detectable at n=3.** This holds for both reward and cost, whether skills, MCP docs or both are added.
 - **Hidden and real tests are where builds differ.**
   - The one-shot cells pass 89–96% of them, except LangChain `full` at 82%.
-  - The pocock cells pass fewer: Inngest 87%, LangChain 74%. The gap is mostly the real tier: 0.664 and 0.333.
+  - The pocock cells pass 91% (Inngest) and 90% (LangChain), inside the one-shot range. Their real tier is 0.776 and 0.866.
+  - 4 pocock trials (Inngest `EXCiiFN`; LangChain `LozkErs`, `cZcvXAp`, `uUkP7fH`) were first graded while the real tier's Copilot quota was failing, and scored 4–6/18 real tests. Regraded on the Claude API ($0, from their recorded artifacts), they score 10–15/17–18, and the regrade counts.
 - **Maintenance:** Inngest resolves 27/30, LangChain 30/30.
 - **Code quality:**
   - One-shot builds are about 0.6x the reference's size, with 2–20x its type escapes and lint findings, and about half its test coverage.
@@ -47,7 +48,7 @@ The failed LangChain `mcp-docs` trial failed 31 of 34 basic checks; only install
 
 These pass rates are reported beside the reward and are not part of it.
 - **Hidden:** 40 robustness tests: crash, stop, pause, restart and deadline cases.
-- **Real:** 17–18 tests on real nights, with the coder and reviewer on Claude Haiku through the Claude API: budget, deadline, metering, sandbox separation, overfit guards.
+- **Real:** 17–18 tests on real nights (17 where `meter-costs` is skipped because no evaluation called a model), with the coder and reviewer on Claude Haiku through the Claude API: budget, deadline, metering, sandbox separation, overfit guards.
 - **passed:** the share of hidden and real tests each trial passed.
 
 | stack | workflow | arm | passed per trial | mean | hidden | real |
@@ -56,13 +57,13 @@ These pass rates are reported beside the reward and are not part of it.
 | inngest | one-shot | skills | 0.895, 0.93, 0.914 | 0.913 | 0.925 | 0.885 |
 | inngest | one-shot | mcp-docs | 0.842, 0.912, 0.912 | 0.889 | 0.875 | 0.922 |
 | inngest | one-shot | full | 0.947, 0.966, 0.947 | 0.953 | 0.933 | 1.000 |
-| inngest | pocock | full | 0.741, 0.947, 0.931 | 0.873 | 0.967 | 0.664 |
+| inngest | pocock | full | 0.947, 0.931, 0.845 | 0.908 | 0.967 | 0.776 |
 | inngest | reference `5a81c07` | | 1.0 | 1.000 | 1.000 | 1.000 |
 | langchain | one-shot | bare | 0.931, 0.914, 1.0 | 0.948 | 0.958 | 0.926 |
 | langchain | one-shot | skills | 0.947, 0.982, 0.948 | 0.959 | 0.942 | 1.000 |
 | langchain | one-shot | mcp-docs | 0.947, 0.86 | 0.904 | 0.900 | 0.912 |
 | langchain | one-shot | full | 0.897, 0.655, 0.912 | 0.821 | 0.942 | 0.553 |
-| langchain | pocock | full | 0.724, 0.793, 0.69 | 0.736 | 0.917 | 0.333 |
+| langchain | pocock | full | 0.86, 0.947, 0.879 | 0.895 | 0.908 | 0.866 |
 | langchain | reference `3612892` | | 0.966 | 0.966 | 0.950 | 1.000 |
 
 - LangChain `mcp-docs` has n=2 here: the trial at reward 0.088 never reached the hidden and real tests.
@@ -70,7 +71,11 @@ These pass rates are reported beside the reward and are not part of it.
 
 **Tests failed most often:**
 - **Hidden:** `continue-after-stop`, `pause-resume`, `hard-deadline-mid-step`, `backstop-mid-step` and `pause-timeout`, across nearly every cell.
-- **LangChain pocock, real tier:** 12 of 18 real tests failed in all 3 trials. Among them: budget, deadline, meter-costs, tokens, coder-sandbox-clean, hypothesis-handoff, history-in-bundle and the three overfit tests.
+- **Pocock, real tier:**
+  - `deadline` failed in all 3 LangChain trials (each night stopped on `max_rounds`) and in 1 Inngest trial.
+  - `feedback-reaches-coder` failed in 2 of 3 trials per stack: round 1's review feedback is missing from round 2's coder prompt.
+  - Inngest `EXCiiFN`'s round 3 night hung for 30 min without a done.json or stop.json. That fails 6 real tests: meter-costs, spend-adds-up, keep-consistency, no-held-out-to-coder, reviewer-no-dev-item and eval-sandbox-separate.
+  - `stop-halts-spend` failed in 1 trial per stack.
 - **LangChain one-shot `full`, real tier:** one trial (`vqnw6xD`) errored on every real night.
 
 ## Arm effects (one-shot, within a stack)
@@ -186,8 +191,8 @@ Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of 
 | night 5 passes at (trials that got there) | 38.7 min, $8.87 (9/15) | 45.7 min, $9.11 (13/15) |
 | TypeScript errors seen (in runs) | 14.7 (2.6) | 9.7 (2.7) |
 | test failures seen (in runs) | 2.3 (1.9) | 1.5 (1.3) |
-| cold start | 2.4 s (reference 11.1 s) | 181.4 s (reference 144.3 s) |
-| resume latency | 48.2 s (reference 156.1 s) | 116.1 s (reference 122.4 s) |
+| cold start | 2.4 s (reference 11.1 s) | 198.0 s (reference 144.3 s) |
+| resume latency | 46.3 s (reference 156.1 s) | 116.1 s (reference 122.4 s) |
 
 **Web calls:**
 - 1 Inngest build used WebFetch once.
@@ -202,4 +207,4 @@ Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of 
   - `codeclimb-langchain__o8xG5nj` (LangChain `full`). Its one hit is `curl -sI` (headers only) of astral-sh's python-build-standalone releases on github.com: a third party, not CodeClimb.
 - **Infra errors:** 0.
 - **Without a reward:** 0.
-- **Replaced by their regrade:** 3 build trials and 9 maintenance trials. Under the regrade rule, a trial that did not pass is regraded once from its recorded artifacts, and the regrade counts.
+- **Replaced by their regrade:** 7 build trials and 9 maintenance trials. Under the regrade rule, a trial that did not pass is regraded once from its recorded artifacts, and the regrade counts.

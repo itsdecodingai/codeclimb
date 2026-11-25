@@ -96,7 +96,7 @@ The contract behind all of it is [docs/codeclimb-eval-spec.md](docs/codeclimb-ev
 
 ## See it in action
 
-**The full run of 2026-11-20 to 2026-11-24.** 90 trials of Claude Code 2.1.322 on Opus 5.5 at medium effort: 5 build cells and 10 maintenance tasks per stack, 3 trials each, started with one command.
+**The full run of 2026-11-20 to 2026-11-24**, with its last regrades on 2026-11-25. 90 trials of Claude Code 2.1.322 on Opus 5.5 at medium effort: 5 build cells and 10 maintenance tasks per stack, 3 trials each, started with one command.
 
 ```bash
 ./start-full-run.sh
@@ -107,15 +107,15 @@ Nearly every build reaches reward 1.0, so the reward does not separate the cells
 | Stack | Workflow | Trials at reward 1.0 | Hidden and real tests passed | Mean $ per trial | Agent time, min |
 |---|---|---|---|---|---|
 | [Inngest](https://inngest.link/dai-gh) | one-shot | 12 / 12 | 93% | 12.38 | 53 |
-| [Inngest](https://inngest.link/dai-gh) | pocock | 3 / 3 | 87% | 30.92 | 113 |
+| [Inngest](https://inngest.link/dai-gh) | pocock | 3 / 3 | 91% | 30.92 | 113 |
 | LangChain | one-shot | 11 / 12 | 91% | 14.04 | 77 |
-| LangChain | pocock | 3 / 3 | 74% | 29.23 | 110 |
+| LangChain | pocock | 3 / 3 | 90% | 29.23 | 110 |
 
-The pocock gap is in the real tests only (hidden: 97% and 92%), and 4 of the 6 pocock trials keep real-test grades from the GitHub Copilot login, while every one-shot trial was graded on the Claude API. Read it as unconfirmed, not as a workflow effect.
+Pocock and one-shot pass about as many hidden and real tests. 4 pocock trials were first graded while the real tier's GitHub Copilot login was failing, which put the cells at 87% (Inngest) and 74% (LangChain); the table counts their regrades on the Claude API.
 
 No arm effect is detectable at 3 trials per cell. The maintenance tasks resolve 27 of 30 trials on [Inngest](https://inngest.link/dai-gh) and 30 of 30 on LangChain, at a mean of $0.85 per trial. Every table, the code metrics and the trials kept out: [docs/results/metrics.md](docs/results/metrics.md).
 
-The run above took 5 days, stopped and continued three times, and its real tier started on a GitHub Copilot login; `start-full-run.sh` now puts the real tier on the Claude API. Every departure from one clean run is in [docs/results/reproduce.md](docs/results/reproduce.md).
+The run above took 5 days, stopped and continued three times, and its real tier started on a GitHub Copilot login; every pocock trial graded on that login was regraded on the Claude API, and `start-full-run.sh` now puts the real tier there. Every departure from one clean run is in [docs/results/reproduce.md](docs/results/reproduce.md).
 
 ### Run it with your coding agent
 

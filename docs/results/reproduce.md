@@ -1,6 +1,6 @@
 # Reproducing the full run
 
-How to rerun the benchmark behind [metrics.md](metrics.md), with the same harness, model, tasks, verifier and analysis. A coding agent is not deterministic, so a rerun reproduces the protocol and the conditions; per-trial numbers will differ. The second half records how the 2026-11-20 to 2026-11-24 run actually went, including every step that departed from a single clean run.
+How to rerun the benchmark behind [metrics.md](metrics.md), with the same harness, model, tasks, verifier and analysis. A coding agent is not deterministic, so a rerun reproduces the protocol and the conditions; per-trial numbers will differ. The second half records how the 2026-11-20 to 2026-11-24 run actually went, with its last regrades on 2026-11-25, including every step that departed from a single clean run.
 
 ## What is fixed
 
@@ -96,6 +96,7 @@ Each step below is in the job folders and in the git history.
 | `all-20261122-1520` | continued. It ran every one-shot build job (only 2 attempts for LangChain `mcp-docs`, which kept 1 trial from `all-20261121-1146`), c2 and r2, then the regrades and the code metrics. Before it started, the other one-shot build trials from earlier stamps were deleted, because the fake Pi login change outdated them. |
 | `regrades-anthropic-20261122` | the Copilot quota for the real tier ran out on 2026-11-22. From then on the real tier ran on the Claude API, and two Inngest pocock trials graded before the switch were regraded on it ($0, `harbor trial regrade`) |
 | `all-20261123-2114` | one extra LangChain one-shot `full` trial (`o8xG5nj`), because `U3NPDfX` is a leak and the cell had n=2; then its regrade check and code metrics |
+| `regrades-anthropic-20261125` | the Copilot quota was already failing on the afternoon of 2026-11-21 (spend 0, empty reviews). The 4 pocock trials graded then (Inngest `EXCiiFN`; LangChain `LozkErs`, `cZcvXAp`, `uUkP7fH`) were regraded on the Claude API ($0, `harbor trial regrade`) |
 
 **Rule changes during the run** (each one went into the spec first, then the code):
 - **2026-11-23:** the leak scan counts a file byte-identical to a given file as given at any path. The hand-cleared list was added; `gVLNHRW` was cleared and `U3NPDfX` kept as a leak.
@@ -117,6 +118,12 @@ python3 regrade.py jobs/all-<stamp>-regrades --slots 1 jobs/all-<stamp>-langchai
 python3 code_metrics.py jobs jobs/all-<stamp>-langchain-full
 ```
 
+The 2026-11-25 regrades ran the real tier on the Claude API, one `harbor trial regrade` per trial (the LangChain ones with `. job-configs/bench-env.sh` for the LangSmith key):
+
+```bash
+CODECLIMB_BENCH_PI_AUTH="$(python3 job-configs/pi-auth.py anthropic)" harbor trial regrade jobs/all-20261121-1146-<stack>-full-pocock/<trial> -p tasks/codeclimb-<stack> -o jobs/regrades-anthropic-20261125
+```
+
 The Docker re-measure moved each `code-metrics.json` (and `jobs/reference-metrics/*.json`) to `code-metrics.nodocker.json`, then measured every build trial again:
 
 ```bash
@@ -126,7 +133,7 @@ python3 code_metrics.py jobs jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*
 The final report was produced by:
 
 ```bash
-uv run python analyze.py jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*-* jobs/all-20261122-1002-*-* jobs/all-20261122-1520-*-* jobs/all-20261123-*-langchain-full jobs/all-20261121-1146-references jobs/all-20261122-1520-regrades jobs/regrades-anthropic-20261122 jobs/all-20261123-2114-regrades > jobs/report-final-docker-20261124.txt
+uv run python analyze.py jobs/all-20261120-1102-*-* jobs/all-20261121-1146-*-* jobs/all-20261122-1002-*-* jobs/all-20261122-1520-*-* jobs/all-20261123-*-langchain-full jobs/all-20261121-1146-references jobs/all-20261122-1520-regrades jobs/regrades-anthropic-20261122 jobs/all-20261123-2114-regrades jobs/regrades-anthropic-20261125 > jobs/report-final-20261125.txt
 ```
 
 
