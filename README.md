@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/itsdecodingai/codeclimb" alt="License"></a>
-  <img src="https://img.shields.io/badge/stacks-Inngest_%7C_LangChain-black" alt="stacks: Inngest | LangChain">
+  <img src="https://img.shields.io/badge/Inngest_vs._LangChain-black" alt="Inngest vs. LangChain">
   <a href="https://harborframework.com/docs"><img src="https://img.shields.io/badge/harbor-0.25.0-blue" alt="harbor: 0.25.0"></a>
 </p>
 
