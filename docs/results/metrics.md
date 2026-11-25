@@ -86,29 +86,47 @@ These are exact permutation tests on the 2 x 2 design: skills (yes or no) by MCP
 
 ## Maintenance trials
 
-These are one-shot runs of the `bare` arm on a broken (repair) or outdated (change) base. A trial counts as resolved when its targets pass and nothing that passed on the base regressed.
+These are one-shot runs of the `bare` arm on a broken (repair) or outdated (change) base.
 
-| task | kind | inngest | langchain |
-|---|---|---|---|
-| c2 | change | 3/3 | 3/3 |
-| c4 | change | 2/3 | 3/3 |
-| c6 | change | 3/3 | 3/3 |
-| c7 | change | 2/3 | 3/3 |
-| r2 | repair | 2/3 | 3/3 |
-| r3 | repair | 3/3 | 3/3 |
-| r10 | repair | 3/3 | 3/3 |
-| r12 | repair | 3/3 | 3/3 |
-| r14 | repair | 3/3 | 3/3 |
-| r15 | repair | 3/3 | 3/3 |
-| all | change | 10/12 | 12/12 |
-| all | repair | 17/18 | 18/18 |
-| **all** | | **27/30** | **30/30** |
+- **resolved:** the trial's targets pass and nothing that passed on the base regressed. A trial's first grade can fail; the regrade counts, as for builds (one: Inngest r12 `XYGbXMF`, whose first grade failed `hard-stop`).
+- **hidden passed:** the share of the 40 hidden tests the trial passed. Every base fails 2 of them, `config-rejects` and `hard-deadline-mid-step`, so 0.950 means the trial kept the base's level. The c6 and c7 targets are those two tests (`config-rejects`, `hard-deadline-mid-step`), so a resolved c6 or c7 trial reaches 0.975. A trial below its task's resolved level broke a hidden test: the unresolved c7 trial fixed its target and broke another (0.95).
+- **No real tier:** maintenance trials grade only `basic` and `hidden` (`maintenance.FAMILIES`), so there are no real-test results.
+- **$ / trial** and **agent min** are means per trial: Claude Code's reported cost and the harness's wall time.
+
+| stack | task | kind | n | resolved | hidden passed per trial | mean | $ / trial | agent min |
+|---|---|---|---|---|---|---|---|---|
+| inngest | c2 | change | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 2.87 | 12.2 |
+| inngest | c4 | change | 3 | 2/3 | 0.925, 0.95, 0.95 | 0.942 | 0.92 | 10.0 |
+| inngest | c6 | change | 3 | 3/3 | 0.975, 0.975, 0.975 | 0.975 | 0.23 | 1.4 |
+| inngest | c7 | change | 3 | 2/3 | 0.975, 0.95, 0.975 | 0.967 | 1.31 | 7.9 |
+| inngest | r2 | repair | 3 | 2/3 | 0.95, 0.95, 0.925 | 0.942 | 0.47 | 5.0 |
+| inngest | r3 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.46 | 3.8 |
+| inngest | r10 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.72 | 9.0 |
+| inngest | r12 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.30 | 3.7 |
+| inngest | r14 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.47 | 9.7 |
+| inngest | r15 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.43 | 11.1 |
+| langchain | c2 | change | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 3.00 | 13.6 |
+| langchain | c4 | change | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 1.24 | 15.3 |
+| langchain | c6 | change | 3 | 3/3 | 0.975, 0.975, 0.975 | 0.975 | 0.20 | 1.4 |
+| langchain | c7 | change | 3 | 3/3 | 0.975, 0.975, 0.975 | 0.975 | 1.08 | 9.8 |
+| langchain | r2 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.52 | 6.9 |
+| langchain | r3 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.37 | 6.1 |
+| langchain | r10 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 1.01 | 9.1 |
+| langchain | r12 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.36 | 5.0 |
+| langchain | r14 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.57 | 16.5 |
+| langchain | r15 | repair | 3 | 3/3 | 0.95, 0.95, 0.95 | 0.950 | 0.43 | 4.6 |
+| inngest | all | all | 30 | 27/30 | | 0.953 | 0.82 | 7.4 |
+| inngest | all | change | 12 | 10/12 | | 0.958 | 1.33 | 7.9 |
+| inngest | all | repair | 18 | 17/18 | | 0.949 | 0.47 | 7.0 |
+| langchain | all | all | 30 | 30/30 | | 0.955 | 0.88 | 8.8 |
+| langchain | all | change | 12 | 12/12 | | 0.962 | 1.38 | 10.0 |
+| langchain | all | repair | 18 | 18/18 | | 0.950 | 0.54 | 8.0 |
 
 The 3 unresolved Inngest trials each broke a hidden test that passed on the base:
 - c4 and c7 broke `hidden.continue-after-stop`;
 - r2 broke `hidden.used-night-id`.
 
-Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of $0.85.
+Cost per maintenance trial ranges from $0.16 (c6) to $3.41 (c2), with a mean of $0.85: $24.53 for the 30 Inngest trials and $26.36 for the 30 LangChain trials. The verifier took 43 min per Inngest trial and 34 min per LangChain trial on average.
 
 ## Code and practice metrics
 
