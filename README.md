@@ -102,14 +102,16 @@ The contract behind all of it is [docs/codeclimb-eval-spec.md](docs/codeclimb-ev
 ./start-full-run.sh
 ```
 
-Nearly every build reaches reward 1.0, so the reward does not separate the arms; the hidden and real tests and the cost do:
+Nearly every build reaches reward 1.0, so the reward does not separate the cells; the hidden and real tests, the cost and the agent time do. One-shot rows are the mean of the 4 arms:
 
-| Stack | Workflow | Trials at reward 1.0 | Hidden and real tests passed | Mean $ per trial |
-|---|---|---|---|---|
-| [Inngest](https://inngest.link/dai-gh) | one-shot, 4 arms | 12 / 12 | 89–95% | 11.57–13.49 |
-| [Inngest](https://inngest.link/dai-gh) | pocock | 3 / 3 | 87% | 30.92 |
-| LangChain | one-shot, 4 arms | 11 / 12 | 82–96% | 13.53–15.01 |
-| LangChain | pocock | 3 / 3 | 74% | 29.23 |
+| Stack | Workflow | Trials at reward 1.0 | Hidden and real tests passed | Mean $ per trial | Agent time, min |
+|---|---|---|---|---|---|
+| [Inngest](https://inngest.link/dai-gh) | one-shot | 12 / 12 | 93% | 12.38 | 53 |
+| [Inngest](https://inngest.link/dai-gh) | pocock | 3 / 3 | 87% | 30.92 | 113 |
+| LangChain | one-shot | 11 / 12 | 91% | 14.04 | 77 |
+| LangChain | pocock | 3 / 3 | 74% | 29.23 | 110 |
+
+The pocock gap is in the real tests only (hidden: 97% and 92%), and 4 of the 6 pocock trials keep real-test grades from the GitHub Copilot login, while every one-shot trial was graded on the Claude API. Read it as unconfirmed, not as a workflow effect.
 
 No arm effect is detectable at 3 trials per cell. The maintenance tasks resolve 27 of 30 trials on [Inngest](https://inngest.link/dai-gh) and 30 of 30 on LangChain, at a mean of $0.85 per trial. Every table, the code metrics and the trials kept out: [docs/results/metrics.md](docs/results/metrics.md).
 
